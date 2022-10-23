@@ -3,17 +3,22 @@ from django.urls import reverse
 from django.contrib.auth.models import User
 from django.db.models import Count
 
+
 class PostQuerySet(models.QuerySet):
-
-    def year(self, year):
-        posts_at_year = self.filter(published_at__year=year).order_by('published_at')
-        return posts_at_year
-
-
-class TagQuerySet(models.QuerySet):
     def popular(self):
-        popular_posts = self.annotate(num_posts=Count('posts')).order_by('-num_posts')
+        popular_posts = self.annotate(num_likes=Count('likes')).order_by('-num_likes')
         return popular_posts
+
+    def fetch_with_comments_count(self):
+        # функция аналог .annotate применяется если нужно сделать двойное .annotate.
+        # За счет функции значительно уменьшается количество запросов к базе данных и длительность запроса
+        most_popular_posts_ids = [post.id for post in self]
+        posts_with_comments = Post.objects.filter(id__in=most_popular_posts_ids).annotate(
+            num_comments=Count('comments'))
+        count_for_id = dict(posts_with_comments.values_list('id', 'num_comments'))
+        for post in self:
+            post.num_comments = count_for_id[post.id]
+        return self
 
 
 class Post(models.Model):
@@ -51,6 +56,12 @@ class Post(models.Model):
         ordering = ['-published_at']
         verbose_name = 'пост'
         verbose_name_plural = 'посты'
+
+
+class TagQuerySet(models.QuerySet):
+    def popular(self):
+        popular_posts = self.annotate(num_posts=Count('posts')).order_by('-num_posts')
+        return popular_posts
 
 
 class Tag(models.Model):

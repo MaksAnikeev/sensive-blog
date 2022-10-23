@@ -29,17 +29,12 @@ def serialize_tag(tag):
 
 
 def index(request):
-    posts = Post.objects.prefetch_related('author')
 
-    most_popular_posts = posts.annotate(num_likes=Count('likes')).order_by('-num_likes')[:5]
-    most_popular_posts_ids = [post.id for post in most_popular_posts]
-    posts_with_comments = posts.filter(id__in=most_popular_posts_ids).annotate(num_comments=Count('comments'))
-    ids_and_comments = posts_with_comments.values_list('id', 'num_comments')
-    count_for_id = dict(ids_and_comments)
-    for post in most_popular_posts:
-        post.num_comments = count_for_id[post.id]
+    most_popular_posts = Post.objects.popular().prefetch_related(
+        'author')[:5].fetch_with_comments_count()
 
-    most_fresh_posts = posts.annotate(num_comments=Count('comments')).order_by('-published_at')[:5]
+    most_fresh_posts = Post.objects.order_by('-published_at').prefetch_related(
+        'author')[:5].fetch_with_comments_count()
 
     most_popular_tags = Tag.objects.popular()[:5]
 
@@ -82,7 +77,8 @@ def post_detail(request, slug):
 
     most_popular_tags = Tag.objects.popular()[:5]
 
-    most_popular_posts = []  # TODO. Как это посчитать?
+    most_popular_posts = Post.objects.popular().prefetch_related(
+        'author')[:5].fetch_with_comments_count()
 
     context = {
         'post': serialized_post,
@@ -97,15 +93,13 @@ def post_detail(request, slug):
 def tag_filter(request, tag_title):
     tag = Tag.objects.get(title=tag_title)
 
-    # all_tags = Tag.objects.all()
-    # popular_tags = sorted(all_tags, key=get_related_posts_count)
-    # most_popular_tags = popular_tags[-5:]
-
     most_popular_tags = Tag.objects.popular()[:5]
 
-    most_popular_posts = []  # TODO. Как это посчитать?
+    most_popular_posts = Post.objects.popular().prefetch_related(
+        'author')[:5].fetch_with_comments_count()
 
-    related_posts = tag.posts.all().annotate(num_comments=Count('comments'))[:20]
+    related_posts = tag.posts.all().prefetch_related(
+        'author')[:20].fetch_with_comments_count()
 
     context = {
         'tag': tag.title,
